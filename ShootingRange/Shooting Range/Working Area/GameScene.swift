@@ -169,9 +169,10 @@ extension GameScene {
     }
     
     func containsLessVelocity(yPosition: CGFloat, velocity: CGFloat) -> Bool {
+        print("\n\n\n")
         for node in children {
-            if node.name == "target" {
-                if node.position.y == yPosition && (node.physicsBody?.velocity.dx)! < velocity {
+            if node.name == "target" || node.name == "man" {
+                if round(node.position.y) == yPosition && (node.physicsBody?.velocity.dx)! < velocity {
                     return true
                 }
             }
@@ -181,7 +182,10 @@ extension GameScene {
     
     func makeNewTimer() {
         let timeInterval = TimeInterval.random(in: 1...1.5)
-        gameTimer = Timer.scheduledTimer(timeInterval: timeInterval, target: self, selector: #selector(makeGoal), userInfo: nil, repeats: false)
+        //gameTimer = Timer.scheduledTimer(timeInterval: timeInterval, target: self, selector: //#selector(makeGoal), userInfo: nil, repeats: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeInterval) {
+            self.makeGoal()
+        }
     }
     
     func makeBullet(xPosition: CGFloat) {
