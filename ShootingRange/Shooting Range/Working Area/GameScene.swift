@@ -169,7 +169,7 @@ extension GameScene {
     }
     
     func containsLessVelocity(yPosition: CGFloat, velocity: CGFloat) -> Bool {
-        print("\n\n\n")
+
         for node in children {
             if node.name == "target" || node.name == "man" {
                 if round(node.position.y) == yPosition && (node.physicsBody?.velocity.dx)! < velocity {
