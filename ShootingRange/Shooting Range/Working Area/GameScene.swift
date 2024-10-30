@@ -12,31 +12,49 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     let possibleSizes = [20, 40, 80]   // размеры целей
     let possibleYPositions = [60, 180, 300]
-    let goalNames = ["goal", "child", "goal"]
+    let goalNames = ["goal", "man", "goal"]
     let velocities = [
         20: 400...500,
         40: 250...350,
         80: 200...250
     ]
     var gameTimer: Timer?
-    var bulletsCount: Int = 6 {
+    var countTheTime: Timer?
+    var isReloading = false
+    var isGameOver = false
+    
+    var scoreLabel: SKLabelNode!
+    var bulletsCountLabel: SKLabelNode!
+    var timeLabel: SKLabelNode!
+    
+    var bulletsCount = 6 {
         didSet {
             bulletsCountLabel.text = "Bullets: \(bulletsCount)"
         }
     }
-    var isReloading = false
-    var score: Int = 0 {
+    var score = 0 {
         didSet {
             scoreLabel.text = "Score: \(score)"
         }
     }
-    var scoreLabel: SKLabelNode!
-    var bulletsCountLabel: SKLabelNode!
+    var timeInSeconds = 300 {
+        didSet {
+            if timeInSeconds == 0 {
+                stopTheGame()
+            }
+            let minutes = Int(timeInSeconds / 60)
+            let seconds = timeInSeconds % 60
+            if seconds < 10 {
+                timeLabel.text = "\(minutes):0\(seconds)"
+            } else {
+                timeLabel.text = "\(minutes):\(seconds)"
+            }
+        }
+    }
     
     
     override func didMove(to view: SKView) {
         
-        backgroundColor = .black
         makeBackground()
         makeBorder(yPosition: 120)
         makeBorder(yPosition: 240)
@@ -45,12 +63,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         physicsWorld.contactDelegate = self
         physicsWorld.gravity = CGVector(dx: 0, dy: 0)
         
-        gameTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(makeGoal), userInfo: nil, repeats: true)
+        makeTimers()
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         if let touch = touches.first {
-            if !isReloading {
+            if isGameOver {
+                restartTheGame()
+            } else if !isReloading {
                 if bulletsCount == 0 {
                     reload()
                 } else {
@@ -110,6 +130,15 @@ extension GameScene {
         bulletsCountLabel.position = CGPoint(x: 700, y: 320)
         bulletsCountLabel.zPosition = 3
         addChild(bulletsCountLabel)
+        
+        timeLabel = SKLabelNode()
+        timeLabel.text = "5:00"
+        timeLabel.fontName = "Charter"
+        timeLabel.fontColor = .white
+        timeLabel.fontSize = 30
+        timeLabel.position = CGPoint(x: 70, y: 320)
+        timeLabel.zPosition = 3
+        addChild(timeLabel)
     }
     
     func makeBackground() {
@@ -127,15 +156,24 @@ extension GameScene {
         addChild(border)
     }
     
+    func makeTimers() {
+        countTheTime = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(minusOneSecond), userInfo: nil, repeats: true)
+        gameTimer = Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(makeGoal), userInfo: nil, repeats: true)
+    }
+    
+    @objc func minusOneSecond() {
+        timeInSeconds -= 1
+    }
+    
     @objc func makeGoal() {
         
         gameTimer?.invalidate()
-        guard let goal = goalNames.randomElement() else { return }
+        let goal = goalNames.randomElement()!
+        let yPosition = possibleYPositions.randomElement()!
         let size: Int
         let xVelocity: Int
-        let yPosition = possibleYPositions.randomElement()!
         
-        if goal == "child" {
+        if goal == "man" {
             size = 80
             xVelocity = Int.random(in: velocities[80]!)
         } else {
@@ -148,14 +186,13 @@ extension GameScene {
             let sprite = SKSpriteNode(imageNamed: goal)
             sprite.size = CGSize(width: size, height: size)
             sprite.position = CGPoint(x: -size, y: yPosition)
-            if goal == "child" {
+            if goal == "man" {
                 sprite.name = "man"
             } else {
                 sprite.name = "target"
             }
             
             sprite.physicsBody = SKPhysicsBody(texture: sprite.texture!, size: sprite.size)
-            //sprite.physicsBody?.velocity = CGVector(dx: xVelocity, dy: 0)
             sprite.physicsBody?.angularVelocity = 0
             sprite.physicsBody?.linearDamping = 0
             sprite.physicsBody?.angularDamping = 0
@@ -182,10 +219,7 @@ extension GameScene {
     
     func makeNewTimer() {
         let timeInterval = TimeInterval.random(in: 1...1.5)
-        //gameTimer = Timer.scheduledTimer(timeInterval: timeInterval, target: self, selector: //#selector(makeGoal), userInfo: nil, repeats: false)
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeInterval) {
-            self.makeGoal()
-        }
+        gameTimer = Timer.scheduledTimer(timeInterval: timeInterval, target: self, selector: #selector(makeGoal), userInfo: nil, repeats: false)
     }
     
     func makeBullet(xPosition: CGFloat) {
@@ -220,28 +254,25 @@ extension GameScene {
             run(SKAction.playSoundFileNamed("rightOnTarget.mp3", waitForCompletion: false))
             
             if firstNode.name == "target" {
-                switch firstNode.frame.width {
-                case 20:
-                    score += 100
-                case 40:
-                    score += 30
-                default:
-                    score += 5
-                }
+                addPoints(node: firstNode)
             } else {
-                switch secondNode.frame.width {
-                case 20:
-                    score += 100
-                case 40:
-                    score += 30
-                default:
-                    score += 5
-                }
+                addPoints(node: secondNode)
             }
 
         } else {
             run(SKAction.playSoundFileNamed("manPain.mp3", waitForCompletion: false))
             score -= 200
+        }
+    }
+    
+    func addPoints(node: SKNode) {
+        switch node.frame.width {
+        case 20:
+            score += 100
+        case 40:
+            score += 30
+        default:
+            score += 5
         }
     }
     
@@ -261,5 +292,48 @@ extension GameScene {
             self.bulletsCount = 6
             self.isReloading = false
         }
+    }
+    
+    func stopTheGame() {
+        
+        isGameOver = true
+        gameTimer?.invalidate()
+        countTheTime?.invalidate()
+        
+        for node in children {
+            if node.zPosition != -2 && node.zPosition != -1 { node.removeFromParent() }
+        }
+        
+        let gameOverSprite = SKSpriteNode(imageNamed: "gameOver")
+        gameOverSprite.position = CGPoint(x: 390, y: 180)
+        gameOverSprite.size = CGSize(width: 400, height: 100)
+        gameOverSprite.zPosition = 2
+        addChild(gameOverSprite)
+        
+        let yourScoreLabel = SKLabelNode(fontNamed: "Charter")
+        yourScoreLabel.text = "Your score is \(score)"
+        yourScoreLabel.position = CGPoint(x: 390, y: 130)
+        yourScoreLabel.fontSize = 30
+        yourScoreLabel.zPosition = 2
+        addChild(yourScoreLabel)
+        
+        let tapToRestartLabel = SKLabelNode(fontNamed: "Charter")
+        tapToRestartLabel.text = "Tap to restart"
+        tapToRestartLabel.position = CGPoint(x: 390, y: 100)
+        tapToRestartLabel.fontSize = 20
+        tapToRestartLabel.zPosition = 2
+        addChild(tapToRestartLabel)
+    }
+    
+    func restartTheGame() {
+        for node in children {
+            if node.zPosition == 2 { node.removeFromParent() }
+        }
+        isGameOver = false
+        score = 0
+        timeInSeconds = 10
+        bulletsCount = 6
+        makeLabels()
+        makeTimers()
     }
 }
